@@ -13,10 +13,13 @@ const dbConfig = JSON.parse(fs.readFileSync('bdConection.json', 'utf8'));
 let connection;
 
 async function init() {
-    connection = await mysql.createConnection(dbConfig);
+    //connection = await mysql.createConnection(dbConfig);
+    const pool = mysql.createPool(dbConfig);
+    
     
     app.get('/api/items', async (req, res) => {
       try {
+        const connection = await pool.getConnection();
         // Realizar una consulta a la base de datos
         const [rows] = await connection.execute('SELECT * FROM tbl_productos');
         
@@ -26,6 +29,9 @@ async function init() {
         console.log(error)
         res.status(500).json({ error: 'Error al consultar la base de datos' });
       }
+      finally{
+        connection.release();
+      }
     });
 
     //TODO: HACER UN DELETE EN VEZ DE UN GET
@@ -34,10 +40,14 @@ async function init() {
       
       try {
         console.log(id);
+        const connection = await pool.getConnection();
         await connection.execute('DELETE FROM tbl_productos WHERE id_producto = ?', [id]);
         res.json({ success: true, message: 'Registro eliminado correctamente' });
       } catch (error) {
         res.status(500).json({ error: 'Error al eliminar el registro' });
+      }
+      finally{
+        connection.release();
       }
     });
 
@@ -46,6 +56,7 @@ async function init() {
       
       try {
         console.log(id);
+        const connection = await pool.getConnection();
         const [rows] = await connection.execute('select * FROM tbl_productos WHERE id_producto = ?', [id]);
         if(rows.length > 0){
           res.json(rows);
@@ -56,6 +67,9 @@ async function init() {
       } catch (error) {
         res.status(500).json({ error: 'Error al buscar registro' });
       }
+      finally{
+        connection.release();
+      }
     });
     
     app.get('/api/items/searchByBarCode/:code', async (req, res) => {
@@ -63,6 +77,7 @@ async function init() {
       
       try {
         console.log(code);
+        const connection = await pool.getConnection();
         const [rows] = await connection.execute('select * FROM tbl_productos WHERE codigo_barras = ?', [code]);
         if(rows.length > 0){
           res.json(rows);
@@ -72,6 +87,9 @@ async function init() {
         }
       } catch (error) {
         res.status(500).json({ error: 'Error al buscar registro' });
+      }
+      finally{
+        connection.release();
       }
     });
 
@@ -94,6 +112,7 @@ async function init() {
       } = req.body;
     
       try {
+        const connection = await pool.getConnection();
         // Crear el nuevo registro en la base de datos
         const result = await connection.execute(`
           INSERT INTO tbl_productos (
@@ -134,6 +153,9 @@ async function init() {
         console.log(error);
         res.status(500).json({ error: 'Error al crear el producto' });
       }
+      finally{
+        connection.release();
+      }
     });    
 
     app.post('/api/item/updateById', async (req, res) => {
@@ -154,11 +176,12 @@ async function init() {
         id_categoria,
         iva
       } = req.body;
-      console.log(id_producto)
+      console.log(id_producto);
       if(id_producto === null || id_producto == '' || id_producto <= 0 || id_producto === undefined){
         return res.status(201).json({ success: false, message: 'Id producto no proporcionado'});
       }
       try {
+        const connection = await pool.getConnection();
         // Crear el nuevo registro en la base de datos
         const result = await connection.execute(`
           UPDATE tbl_productos set
@@ -200,6 +223,9 @@ async function init() {
         // Si hay un error, envía una respuesta de error
         console.log(error);
         res.status(500).json({ error: 'Error al actualizar el producto' });
+      }
+      finally{
+        connection.release();
       }
     });   
 
