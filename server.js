@@ -1,6 +1,7 @@
 const express = require('express');
 const mysql = require('mysql2/promise');
 const fs = require('fs');
+const bcryptjs = require('bcryptjs');
 
 const app = express();
 const PORT = 3000;
@@ -16,20 +17,106 @@ async function init() {
     //connection = await mysql.createConnection(dbConfig);
     const pool = mysql.createPool(dbConfig);
     
-    
-    app.get('/api/items', async (req, res) => {
+    app.get('/api/login', async (req, res) => {
+      const { user, password } = req.query;
       try {
-        const connection = await pool.getConnection();
+        if(user && password){
+          console.log({user:user, password:password});
+          connection = await pool.getConnection();
+          const [rows] = await connection.execute('SELECT * FROM tbl_usuarios WHERE nombre_usuario = ?', [user]);//Se obtiene el ultimo id de la tabla, por que no lo pude hacer autoincrementable
+          console.log(rows);
+          console.log(rows.length);
+          console.log(rows.length < 1);
+          console.log(await bcryptjs.compare(password, rows[0].password));
+          if(rows.length < 1 || !(await bcryptjs.compare(password, rows[0].password))){
+            return res.json({success:false, message:'Usuario o contraseña incorrectas'});
+          }
+          else{
+            return res.json({success:true, message:'Login correcto'});
+          }
+        }
+        else{
+          return res.json({success:false, message:'No se puede iniciar sesion'});
+        }
+      } catch (error) {
+        console.log(error);
+        res.status(500).json({ error: 'Error al inicair sesion' });
+      }
+      finally{
+        connection.release();
+      }
+    });
+//TODO: COOMPROBAR QUE EL USUARIO NO EXSTA ANTES DE HACER EL REGISTRO
+    app.get('/api/register', async (req, res) => {
+      const { name, user, password, id_rol} = req.query;
+      let connection;
+      try {
+        if(user && password && name && id_rol){
+          const password_hash = await bcryptjs.hash(password, 8);
+          connection = await pool.getConnection();
+          const [user_result] = await connection.execute('SELECT * FROM tbl_usuarios WHERE nombre_usuario = ?',[user]);
+          if(user_result.length > 0){
+            return res.json({success:false, message:'El usario ya exite'});
+          }
+          const [rows] = await connection.execute('SELECT MAX(id_usuario) as last_user FROM tbl_usuarios');//Se obtiene el ultimo id de la tabla, por que no lo pude hacer autoincrementable
+          let last_user = Number(rows[0].last_user)+1;
+          console.log({
+            id_usuario:last_user,
+            name:name,
+            user:user,
+            password:password,
+            id_rol:id_rol
+          });
+          const result = await connection.execute(`
+            INSERT INTO tbl_usuarios (
+              id_usuario,
+              nombre,
+              nombre_usuario,
+              password,
+              id_rol
+            ) VALUES (?, ?, ?, ?, ?)`,
+            [
+              last_user,
+              name,
+              user,
+              password_hash,
+              id_rol
+            ]
+          );
+          res.json({success:true, message:[{id_usuario:last_user, user:user, password:password, password_hash:password_hash}, {message:'Producto creado', id_usuario:last_user}]});
+        }
+        else{
+          return res.json({success:false, message:'No se puede registrar el usuario'});
+        }
+      } catch (error) {
+        console.log(error);
+        res.status(500).json({ error: 'Error crear el registro' });
+      }
+      finally{
+        connection.release();
+      }
+    });
+    
+    app.get('/api/itemsBySucursal/:id_sucursal', async (req, res) => {
+      let connection;
+      try {
+        const { id_sucursal } = req.params;
+        connection = await pool.getConnection();
         // Realizar una consulta a la base de datos
-        const [rows] = await connection.execute('SELECT * FROM tbl_productos');
+        const [rows] = await connection.execute('SELECT * FROM tbl_productos product, tbl_inventario inv WHERE inv.id_producto = product.id_producto AND inv.id_sucursal = ?', [id_sucursal]);
         
-        // Enviar los resultados como respuesta
-        res.json(rows);
+        if(rows.length > 0){
+          res.json(rows);
+        }
+        else{
+          res.json({success: true, message: 'No existen registros'});
+        }
       } catch (error) {
         console.log(error)
         res.status(500).json({ error: 'Error al consultar la base de datos' });
       }
-      finally{
+      if (connection) {
+        console.log("conexion");
         connection.release();
       }
     });
@@ -37,11 +124,11 @@ async function init() {
     //TODO: HACER UN DELETE EN VEZ DE UN GET
     app.get('/api/items/delete/:id', async (req, res) => {
       const { id } = req.params;
-      
+      let connection;
       try {
         console.log(id);
-        const connection = await pool.getConnection();
-        await connection.execute('DELETE FROM tbl_productos WHERE id_producto = ?', [id]);
+        connection = await pool.getConnection();
+        await connection.execute('DELETE FROM tbl_inventario WHERE id_producto = ?', [id]);
         res.json({ success: true, message: 'Registro eliminado correctamente' });
       } catch (error) {
         res.status(500).json({ error: 'Error al eliminar el registro' });
@@ -51,13 +138,13 @@ async function init() {
       }
     });
 
-    app.get('/api/items/searchById/:id', async (req, res) => {
-      const { id } = req.params;
-      
+    app.get('/api/items/searchById', async (req, res) => {
+      const { id_producto, id_sucursal } = req.query;
+      console.log({id_producto:id_producto, id_sucursal:id_sucursal});
+      let connection;
       try {
-        console.log(id);
-        const connection = await pool.getConnection();
-        const [rows] = await connection.execute('select * FROM tbl_productos WHERE id_producto = ?', [id]);
+        connection = await pool.getConnection();
+        const [rows] = await connection.execute('SELECT * FROM tbl_productos product, tbl_inventario inv WHERE inv.id_producto = product.id_producto AND product.id_producto = ? AND inv.id_sucursal = ?', [id_producto, id_sucursal]);
         if(rows.length > 0){
           res.json(rows);
         }
@@ -65,20 +152,23 @@ async function init() {
           res.json({success: true, message: 'No existe el registro'});
         }
       } catch (error) {
+        console.error(error);
         res.status(500).json({ error: 'Error al buscar registro' });
       }
       finally{
-        connection.release();
+        if (connection) {
+          connection.release();
+        }
       }
     });
     
     app.get('/api/items/searchByBarCode/:code', async (req, res) => {
-      const { code } = req.params;
-      
+      const { codigo_barras, id_sucursal } = req.query;
+      console.log({id_producto:id_producto, id_sucursal:id_sucursal});
+      let connection;
       try {
-        console.log(code);
-        const connection = await pool.getConnection();
-        const [rows] = await connection.execute('select * FROM tbl_productos WHERE codigo_barras = ?', [code]);
+        connection = await pool.getConnection();
+        const [rows] = await connection.execute('SELECT * FROM tbl_productos product, tbl_inventario inv WHERE inv.id_producto = product.id_producto AND product.codigo_barras = ? AND inv.id_sucursal = ?', [codigo_barras, id_sucursal]);
         if(rows.length > 0){
           res.json(rows);
         }
@@ -95,7 +185,8 @@ async function init() {
 
     app.post('/api/item/new', async (req, res) => {
       // Extraer los datos del cuerpo de la solicitud
-      console.log(req.body)
+      console.log(req.body);
+      let connection;
       const {
         codigo_barras,
         nombre_producto,
@@ -112,7 +203,7 @@ async function init() {
       } = req.body;
     
       try {
-        const connection = await pool.getConnection();
+        connection = await pool.getConnection();
         // Crear el nuevo registro en la base de datos
         const result = await connection.execute(`
           INSERT INTO tbl_productos (
@@ -160,7 +251,8 @@ async function init() {
 
     app.post('/api/item/updateById', async (req, res) => {
       // Extraer los datos del cuerpo de la solicitud
-      console.log(req.body)
+      console.log(req.body);
+      let connection;
       const {
         id_producto,
         codigo_barras,
@@ -181,7 +273,7 @@ async function init() {
         return res.status(201).json({ success: false, message: 'Id producto no proporcionado'});
       }
       try {
-        const connection = await pool.getConnection();
+        connection = await pool.getConnection();
         // Crear el nuevo registro en la base de datos
         const result = await connection.execute(`
           UPDATE tbl_productos set
