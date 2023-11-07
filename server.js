@@ -2,11 +2,17 @@ const express = require('express');
 const mysql = require('mysql2/promise');
 const fs = require('fs');
 const bcryptjs = require('bcryptjs');
+const session = require('express-session');
 
 const app = express();
 const PORT = 3000;
 
 app.use(express.json());//se usa para recibir el json de las peticiones post
+app.use(session({
+   secret:'seretkey',
+   resave: true,
+   saveUninitialized: true
+}));
 
 // Configuración de la conexión a la base de datos
 const dbConfig = JSON.parse(fs.readFileSync('bdConection.json', 'utf8'));
@@ -32,6 +38,8 @@ async function init() {
             return res.json({success:false, message:'Usuario o contraseña incorrectas'});
           }
           else{
+            req.session.loggedin = true;
+            req.session.name = rows[0].nombre_usuario;
             return res.json({success:true, message:'Login correcto'});
           }
         }
@@ -320,6 +328,15 @@ async function init() {
         connection.release();
       }
     });   
+
+    app.get('/', async (req, res) => {
+      if(req.session.loggedin){
+        res.json({success: true, message: 'Bienvenido '+req.session.name});
+      }
+      else{
+        res.json({success: true, message: 'Por favor inicia sesion'});
+      }
+    });
 
     app.listen(PORT, () => {
       console.log(`Servidor corriendo en http://localhost:${PORT}`);
