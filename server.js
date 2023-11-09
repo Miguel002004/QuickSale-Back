@@ -3,11 +3,17 @@ const mysql = require('mysql2/promise');
 const fs = require('fs');
 const bcryptjs = require('bcryptjs');
 const session = require('express-session');
+const cors = require('cors');
 
 const app = express();
 const PORT = 3000;
 
 app.use(express.json());//se usa para recibir el json de las peticiones post
+app.use(cors());
+const corsOptions = {
+  origin: 'http://localhost:8080', // Asegúrate de que esta es la URL de tu cliente Vue
+};
+app.use(cors(corsOptions));
 app.use(session({
    secret:'seretkey',
    resave: true,
@@ -40,7 +46,7 @@ async function init() {
           else{
             req.session.loggedin = true;
             req.session.name = rows[0].nombre_usuario;
-            return res.json({success:true, message:'Login correcto'});
+            return res.json({success:true, message:'Login correcto', data:{user_name: rows[0].nombre_usuario}});
           }
         }
         else{
