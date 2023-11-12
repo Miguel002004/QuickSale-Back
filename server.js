@@ -10,10 +10,10 @@ const PORT = 3000;
 
 app.use(express.json());//se usa para recibir el json de las peticiones post
 app.use(cors());
-const corsOptions = {
+/*const corsOptions = {
   origin: 'http://localhost:8080', // Asegúrate de que esta es la URL de tu cliente Vue
-};
-app.use(cors(corsOptions));
+};*/
+//app.use(cors(corsOptions));
 app.use(session({
    secret:'seretkey',
    resave: true,
