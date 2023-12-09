@@ -36,11 +36,10 @@ async function init() {
           console.log({user:user, password:password});
           connection = await pool.getConnection();
           const [rows] = await connection.execute('SELECT * FROM tbl_usuarios WHERE nombre_usuario = ?', [user]);//Se obtiene el ultimo id de la tabla, por que no lo pude hacer autoincrementable
-          console.log(rows);
-          console.log(rows.length);
-          console.log(rows.length < 1);
-          console.log(await bcryptjs.compare(password, rows[0].password));
-          if(rows.length < 1 || !(await bcryptjs.compare(password, rows[0].password))){
+          if(rows.length < 1){
+            return res.json({success:false, message:'Usuario o contraseña incorrectas'});
+          }
+          else if(!await bcryptjs.compare(password, rows[0].password)){
             return res.json({success:false, message:'Usuario o contraseña incorrectas'});
           }
           else{
