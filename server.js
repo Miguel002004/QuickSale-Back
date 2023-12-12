@@ -334,6 +334,42 @@ async function init() {
       }
     });   
 
+    app.get('/api/roles', async (req, res) => {
+      let connection;
+      try {
+        connection = await pool.getConnection();
+        const [rows] = await connection.execute('SELECT ID_ROL, ROL FROM tbl_roles');
+        if(rows.length > 0){
+          res.json({success: true, result: rows});
+        }
+        else{
+          res.json({success: false, message: 'No existe el registro'});
+        }
+      } catch (error) {
+        res.status(500).json({ error: 'Error al buscar registro' });
+      }
+      finally{
+        connection.release();
+      }
+    });
+
+     //TODO: HACER UN DELETE EN VEZ DE UN GET
+     app.get('/api/user/delete/:id', async (req, res) => {
+      const { id } = req.params;
+      let connection;
+      try {
+        console.log(id);
+        connection = await pool.getConnection();
+        await connection.execute('DELETE FROM tbl_usuarios WHERE id_usuario = ?', [id]);
+        res.json({ success: true, message: 'Registro eliminado correctamente' });
+      } catch (error) {
+        res.status(500).json({ error: 'Error al eliminar el registro' });
+      }
+      finally{
+        connection.release();
+      }
+    });
+
     app.get('/', async (req, res) => {
       if(req.session.loggedin){
         res.json({success: true, message: 'Bienvenido '+req.session.name});
