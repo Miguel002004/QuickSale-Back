@@ -175,20 +175,21 @@ async function init() {
       }
     });
     
-    app.get('/api/items/searchByBarCode/:code', async (req, res) => {
+    app.get('/api/items/searchByBarCode', async (req, res) => {
       const { codigo_barras, id_sucursal } = req.query;
-      console.log({id_producto:id_producto, id_sucursal:id_sucursal});
+      console.log({codigo_barras:codigo_barras, id_sucursal:id_sucursal});
       let connection;
       try {
         connection = await pool.getConnection();
         const [rows] = await connection.execute('SELECT * FROM tbl_productos product, tbl_inventario inv WHERE inv.id_producto = product.id_producto AND product.codigo_barras = ? AND inv.id_sucursal = ?', [codigo_barras, id_sucursal]);
         if(rows.length > 0){
-          res.json(rows);
+          res.json({success: true, result: rows});
         }
         else{
-          res.json({success: true, message: 'No existe el registro'});
+          res.json({success: false, message: 'No existe el registro'});
         }
       } catch (error) {
+        console.log(error);
         res.status(500).json({ error: 'Error al buscar registro' });
       }
       finally{
