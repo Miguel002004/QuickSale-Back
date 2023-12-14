@@ -181,16 +181,23 @@ async function init() {
       let connection;
       try {
         connection = await pool.getConnection();
-        const [rows] = await connection.execute('SELECT * FROM tbl_productos product, tbl_inventario inv WHERE inv.id_producto = product.id_producto AND product.codigo_barras = ? AND inv.id_sucursal = ?', [codigo_barras, id_sucursal]);
+        const [rows] = await connection.execute(`SELECT 
+        product.id_producto,
+        codigo_barras,
+        imagen,
+        nombre_producto,
+        precio_venta,
+        cantidad_stock
+        FROM tbl_productos product, tbl_inventario inv WHERE inv.id_producto = product.id_producto AND product.codigo_barras = ? AND inv.id_sucursal = ? LIMIT 1`, [codigo_barras, id_sucursal]);
         if(rows.length > 0){
           res.json({success: true, result: rows});
         }
         else{
-          res.json({success: false, message: 'No existe el registro'});
+          res.json({success: false, message: 'Producto no encontrado'});
         }
       } catch (error) {
         console.log(error);
-        res.status(500).json({ error: 'Error al buscar registro' });
+        res.status(500).json({ error: 'Error al buscar Producto' });
       }
       finally{
         connection.release();
