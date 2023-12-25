@@ -62,6 +62,32 @@ async function init() {
         connection.release();
       }
     });
+    app.get('/api/login_token', async (req, res) => {
+      const { token } = req.query;
+      if(token){
+        try {
+            console.log({token:token});
+            connection = await pool.getConnection();
+            const resul = await getUserByToken(connection, token);
+            if(resul !== null){
+              return res.json({success:true, message:'Login correcto', data:{user_name: resul[0].nombre_usuario, token: token}});
+            }
+            else{
+              return res.json({success: false, message: 'no se pudo iniciar sesion, no se ingreso un token valido o activo'});  
+            }
+          } catch (error) {
+            console.log(error);
+            res.status(500).json({ error: 'Error al inicair sesion' });
+          }
+          finally{
+            connection.release();
+          
+          }
+      }
+      else{
+        return res.json({success:false, message:'No se puede iniciar sesion'});
+      }
+    });
 //TODO: COOMPROBAR QUE EL USUARIO NO EXSTA ANTES DE HACER EL REGISTRO
     app.get('/api/register', async (req, res) => {
       const { name, user, password, id_rol} = req.query;
@@ -410,5 +436,61 @@ async function addSession(bdConection, id_usuario){
   }
   finally{
 
+  }
+}
+
+async function getUserByToken(bdConection, token){
+  try {
+    const resul = await validaToken(bdConection, token);
+    if(resul !== null){
+      const [result2] = await bdConection.execute('SELECT id_usuario, nombre, nombre_usuario, id_rol, id_sesion FROM tbl_usuarios WHERE id_sesion = ?', [resul[0].id_sesion]);
+      if(result2.length > 0){
+        return result2;
+      }
+      else{
+        return null;
+      }
+    }
+  } catch (error) {
+    console.log(error);
+  }
+
+  return null;
+}
+async function validaToken(bdConection, token){
+  console.log(token);
+  const [rows] = await bdConection.execute('SELECT id_sesion, duracion, activa FROM tbl_sesion WHERE token = ?;', [token]);
+  console.log({'validaToken':rows});
+  if(rows.length > 0){
+    const fecha = new Date (rows[0].duracion);
+    const fechaActual = new Date();
+    const esMismaFecha = fecha.getFullYear() >= fechaActual.getFullYear() &&
+                         fecha.getMonth() >= fechaActual.getMonth() &&
+                         fecha.getDate() >= fechaActual.getDate();
+    if(esMismaFecha){//fecha anterior
+      return rows;
+    }
+    else{
+      console.log('FECHA NO COINSIDE');
+      return null;
+    }
+  }
+  return null;
+}
+
+async function getSucursalByToken(bdConection, token){
+  try {
+    const resul = await validaToken(bdConection, token);
+    if(resul !== null){
+      const [result2] = await bdConection.execute('SELECT sucursal.* FROM tbl_usuarios usu, tbl_sucursales sucursal WHERE usu.id_sucursal = sucursal.id_sucursal and id_sesion = ?', [resul[0].id_sesion]);
+      if(result2.length > 0){
+        return result2;
+      }
+      else{
+        return null;
+      }
+    }
+  } catch (error) {
+    console.log(error);
   }
 }
