@@ -2,8 +2,9 @@ const express = require('express');
 const mysql = require('mysql2/promise');
 const fs = require('fs');
 const bcryptjs = require('bcryptjs');
-const session = require('express-session');
+//const session = require('express-session');
 const cors = require('cors');
+const { v4: uuidv4 } = require('uuid');
 
 const app = express();
 const PORT = 3000;
@@ -14,11 +15,11 @@ app.use(cors());
   origin: 'http://localhost:8080', // Asegúrate de que esta es la URL de tu cliente Vue
 };*/
 //app.use(cors(corsOptions));
-app.use(session({
+/*app.use(session({
    secret:'seretkey',
    resave: true,
    saveUninitialized: true
-}));
+}));*/
 
 // Configuración de la conexión a la base de datos
 const dbConfig = JSON.parse(fs.readFileSync('bdConection.json', 'utf8'));
@@ -43,9 +44,11 @@ async function init() {
             return res.json({success:false, message:'Usuario o contraseña incorrectas'});
           }
           else{
-            req.session.loggedin = true;
-            req.session.name = rows[0].nombre_usuario;
-            return res.json({success:true, message:'Login correcto', data:{user_name: rows[0].nombre_usuario}});
+            const uuid = await addSession(connection, rows[0].id_usuario);
+            if(uuid === null || uuid === ''){
+              return res.json({success:false, message:'No fue posible generar la sesion'});
+            }
+            return res.json({success:true, message:'Login correcto', data:{user_name: rows[0].nombre_usuario, token: uuid}});
           }
         }
         else{
@@ -379,12 +382,7 @@ async function init() {
     });
 
     app.get('/', async (req, res) => {
-      if(req.session.loggedin){
-        res.json({success: true, message: 'Bienvenido '+req.session.name});
-      }
-      else{
-        res.json({success: true, message: 'Por favor inicia sesion'});
-      }
+      res.json({success: true, message: 'Bienvenido '});
     });
 
     app.listen(PORT, () => {
@@ -393,3 +391,24 @@ async function init() {
 }
 
 init();
+
+async function addSession(bdConection, id_usuario){
+  try {
+    const uid = uuidv4();
+    const [rows] = await bdConection.execute('INSERT INTO tbl_sesion (token, duracion, activa) VALUES (?, CURDATE(), 1);', [uid]);
+    const [rows2] = await bdConection.execute('UPDATE tbl_usuarios SET id_sesion = ? WHERE id_usuario = ?;', [rows.insertId, id_usuario]);
+
+    if(rows.affectedRows > 0 && rows2.affectedRows > 0){
+      console.log(uid);
+      return uid;
+    }
+    else {
+      return null;
+    }
+  } catch (error) {
+    console.error(error);
+  }
+  finally{
+
+  }
+}
