@@ -390,6 +390,25 @@ async function init() {
       }
     });
 
+    app.get('/api/categorias', async (req, res) => {
+      let connection;
+      try {
+        connection = await pool.getConnection();
+        const [rows] = await connection.execute('SELECT id_categoria, nombre_categoria FROM tbl_categorias');
+        if(rows.length > 0){
+          res.json({success: true, result: rows});
+        }
+        else{
+          res.json({success: false, message: 'No existen registros'});
+        }
+      } catch (error) {
+        res.status(500).json({success: false, error: 'Error al buscar registros' });
+      }
+      finally{
+        connection.release();
+      }
+    });
+
      //TODO: HACER UN DELETE EN VEZ DE UN GET
      app.get('/api/user/delete/:id', async (req, res) => {
       const { id } = req.params;
